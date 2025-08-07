@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content="{{ csrf_token }}" />
+    <title>{% block title %}Proposal Generator Dashboard{% endblock %}</title>
+
+    <!-- CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    {% load static %}
+    <link
+      href="{% static 'proposal_generator/css/dashboard.css' %}"
+      rel="stylesheet"
+    />
+
+    {% block extra_css %}{% endblock %}
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="{% url 'dashboard' %}">
+          <i class="fas fa-file-contract me-2"></i>
+          Proposal Generator
+        </a>
+
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a
+                class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+                href="{% url 'dashboard' %}"
+              >
+                <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+              </a>
+            </li>
+            <li class="nav-item">
+              <a
+                class="nav-link {% if request.resolver_match.url_name == 'portfolio' %}active{% endif %}"
+                href="{% url 'portfolio' %}"
+              >
+                <i class="fas fa-briefcase me-1"></i>Portfolio
+              </a>
+            </li>
+            <li class="nav-item">
+              <a
+                class="nav-link {% if request.resolver_match.url_name == 'generate' %}active{% endif %}"
+                href="{% url 'generate' %}"
+              >
+                <i class="fas fa-magic me-1"></i>Generate Proposal
+              </a>
+            </li>
+          </ul>
+
+          <div class="navbar-nav">
+            <div class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                role="button"
+                data-bs-toggle="dropdown"
+              >
+                <i class="fas fa-user me-1"></i>Mash H
+              </a>
+              <ul class="dropdown-menu">
+                <li>
+                  <a class="dropdown-item" href="#"
+                    ><i class="fas fa-cog me-2"></i>Settings</a
+                  >
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a class="dropdown-item" href="#"
+                    ><i class="fas fa-sign-out-alt me-2"></i>Logout</a
+                  >
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid">
+      <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+          <div class="position-sticky pt-3">
+            <ul class="nav flex-column">
+              <li class="nav-item">
+                <a
+                  class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+                  href="{% url 'dashboard' %}"
+                >
+                  <i class="fas fa-home me-2"></i>Overview
+                </a>
+              </li>
+              <li class="nav-item">
+                <a
+                  class="nav-link {% if request.resolver_match.url_name == 'portfolio' %}active{% endif %}"
+                  href="{% url 'portfolio' %}"
+                >
+                  <i class="fas fa-folder me-2"></i>My Portfolio
+                </a>
+              </li>
+              <li class="nav-item">
+                <a
+                  class="nav-link {% if request.resolver_match.url_name == 'generate' %}active{% endif %}"
+                  href="{% url 'generate' %}"
+                >
+                  <i class="fas fa-wand-magic-sparkles me-2"></i>Create Proposal
+                </a>
+              </li>
+            </ul>
+
+            <h6
+              class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"
+            >
+              <span>Quick Stats</span>
+            </h6>
+            <div class="px-3">
+              <div class="quick-stat">
+                <div class="stat-number" id="portfolio-count">0</div>
+                <div class="stat-label">Projects</div>
+              </div>
+              <div class="quick-stat">
+                <div class="stat-number" id="proposals-count">0</div>
+                <div class="stat-label">Proposals Generated</div>
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        <!-- Main content area -->
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+          <div
+            class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"
+          >
+            <h1 class="h2">{% block page_title %}Dashboard{% endblock %}</h1>
+            <div class="btn-toolbar mb-2 mb-md-0">
+              {% block page_actions %}{% endblock %}
+            </div>
+          </div>
+
+          <!-- Alert messages -->
+          <div id="alert-container"></div>
+
+          <!-- Page content -->
+          {% block content %}{% endblock %}
+        </main>
+      </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div
+      class="modal fade"
+      id="loadingModal"
+      tabindex="-1"
+      data-bs-backdrop="static"
+      data-bs-keyboard="false"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-body text-center py-4">
+            <div class="spinner-border text-primary me-3" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <span class="loading-text">Processing...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'proposal_generator/js/dashboard.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+  </body>
+</html>

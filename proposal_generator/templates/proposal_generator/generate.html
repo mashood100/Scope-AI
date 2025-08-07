@@ -1,0 +1,277 @@
+{% extends 'proposal_generator/base.html' %}
+
+{% block title %}
+  Generate Proposal - Proposal Generator
+{% endblock %}
+
+{% block page_title %}
+  Generate Proposal
+{% endblock %}
+
+{% block page_actions %}
+  <button class="btn btn-outline-secondary" onclick="clearForm()">
+    <i class="fas fa-eraser me-1"></i>Clear
+  </button>
+{% endblock %}
+
+{% block content %}
+  {% csrf_token %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-10">
+      <div class="card border-left-primary">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">
+            <i class="fas fa-magic me-2"></i>AI-Powered Proposal Generator
+          </h5>
+        </div>
+        <div class="card-body">
+          <p class="text-muted mb-4">
+            Enter a job description below to generate a personalized proposal based on your portfolio projects.
+            Our AI will analyze the requirements and create a tailored response highlighting your relevant experience.
+          </p>
+
+          <!-- Job Description Input -->
+          <div class="mb-3">
+            <label for="jobDescription" class="form-label fw-bold">
+              Job Description <span class="text-danger">*</span>
+            </label>
+            <textarea
+              id="jobDescription"
+              class="form-control"
+              rows="8"
+              placeholder="Paste the complete job description here... (minimum 50 characters required)"
+              maxlength="5000"
+            ></textarea>
+            <div class="form-text">
+              <span id="charCount">0</span>/5000 characters
+              <span id="charMin" class="text-muted ms-2">(minimum 50 required)</span>
+            </div>
+          </div>
+
+          <!-- Generate Button -->
+          <div class="d-flex justify-content-center mb-4">
+            <button id="generateBtn" class="btn btn-primary btn-lg px-5" disabled>
+              <i class="fas fa-wand-magic-sparkles me-2"></i>Generate Proposal
+            </button>
+          </div>
+
+          <!-- Loading State -->
+          <div id="loadingState" class="d-none">
+            <div class="text-center py-4">
+              <div class="spinner-border text-primary me-3" role="status">
+                <span class="visually-hidden">Generating...</span>
+              </div>
+              <div>
+                <h6 class="mb-1">Generating Your Proposal</h6>
+                <small class="text-muted">
+                  Analyzing job requirements and matching with your portfolio...
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results Section -->
+          <div id="resultsSection" class="d-none">
+            <!-- Portfolio Match Info -->
+            <div id="portfolioInfo" class="alert alert-info d-none">
+              <h6 class="alert-heading">
+                <i class="fas fa-briefcase me-2"></i>Portfolio Projects Matched
+              </h6>
+              <div id="matchedProjects"></div>
+            </div>
+
+            <!-- Generated Proposal Output -->
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label for="generatedProposal" class="form-label fw-bold mb-0">Generated Proposal</label>
+                <div class="btn-group">
+                  <button id="copyBtn" class="btn btn-outline-success btn-sm">
+                    <i class="fas fa-copy me-1"></i>Copy
+                  </button>
+                  <button id="downloadBtn" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-download me-1"></i>Download
+                  </button>
+                </div>
+              </div>
+              <textarea
+                id="generatedProposal"
+                class="form-control proposal-text"
+                rows="15"
+                placeholder="Your generated proposal will appear here..."
+              ></textarea>
+              <div class="form-text">
+                You can edit the proposal above before copying or downloading it.
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex justify-content-center gap-2">
+              <button id="generateNewBtn" class="btn btn-outline-primary">
+                <i class="fas fa-refresh me-1"></i>Generate New
+              </button>
+              <button id="clearBtn" class="btn btn-outline-secondary">
+                <i class="fas fa-trash me-1"></i>Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Portfolio Info Section -->
+      <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h6 class="mb-0">
+            <i class="fas fa-info-circle me-2"></i>Portfolio Integration
+          </h6>
+          <span id="portfolioCount" class="badge bg-primary">Loading...</span>
+        </div>
+        <div class="card-body">
+          <div id="portfolioStatus">
+            <div class="text-center text-muted py-3">
+              <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+              <span>Loading portfolio information...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const jobDescriptionTextarea = document.getElementById("jobDescription");
+    const generateBtn = document.getElementById("generateBtn");
+    const loadingState = document.getElementById("loadingState");
+    const resultsSection = document.getElementById("resultsSection");
+    const generatedProposalTextarea = document.getElementById("generatedProposal");
+    const copyBtn = document.getElementById("copyBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const generateNewBtn = document.getElementById("generateNewBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const charCount = document.getElementById("charCount");
+    const charMin = document.getElementById("charMin");
+    const portfolioInfo = document.getElementById("portfolioInfo");
+    const matchedProjects = document.getElementById("matchedProjects");
+    const portfolioCount = document.getElementById("portfolioCount");
+    const portfolioStatus = document.getElementById("portfolioStatus");
+
+    jobDescriptionTextarea.addEventListener("input", function () {
+      const count = this.value.length;
+      charCount.textContent = count;
+      if (count < 50) {
+        charMin.className = "text-danger ms-2";
+        charMin.textContent = `(minimum 50 required - ${50 - count} more needed)`;
+        generateBtn.disabled = true;
+      } else {
+        charMin.className = "text-success ms-2";
+        charMin.textContent = "(minimum met ✓)";
+        generateBtn.disabled = false;
+      }
+    });
+
+    async function generateProposal() {
+      const jobDescription = jobDescriptionTextarea.value.trim();
+      if (jobDescription.length < 50) {
+        alert("Job description must be at least 50 characters long.");
+        return;
+      }
+
+      generateBtn.disabled = true;
+      loadingState.classList.remove("d-none");
+      resultsSection.classList.add("d-none");
+
+      try {
+        const result = await dashboardAPI.proposal.generate(jobDescription);
+        generatedProposalTextarea.value = result.generated_proposal;
+        if (result.relevant_projects_found > 0) {
+          portfolioInfo.classList.remove("d-none");
+          let html = `<p class="mb-2"><strong>${result.relevant_projects_found}</strong> relevant project(s) were matched:</p><ul class="mb-0">`;
+          result.included_projects.forEach(p => {
+            html += `<li><strong>${p.name}</strong> (${Math.round(p.similarity_score * 100)}%) ${
+              p.github_url ? `<a href="${p.github_url}" target="_blank" class="ms-1"><i class="fas fa-external-link-alt"></i></a>` : ""
+            }</li>`;
+          });
+          html += "</ul>";
+          matchedProjects.innerHTML = html;
+        } else {
+          portfolioInfo.classList.add("d-none");
+        }
+        resultsSection.classList.remove("d-none");
+        resultsSection.scrollIntoView({ behavior: "smooth" });
+      } catch (err) {
+        console.error("Error generating proposal:", err);
+        alert("Something went wrong.");
+      } finally {
+        loadingState.classList.add("d-none");
+        generateBtn.disabled = false;
+      }
+    }
+
+    async function copyProposal() {
+      try {
+        await navigator.clipboard.writeText(generatedProposalTextarea.value);
+        alert("Copied to clipboard!");
+      } catch {
+        alert("Copy failed.");
+      }
+    }
+
+    function downloadProposal() {
+      const text = generatedProposalTextarea.value;
+      const filename = `proposal_${new Date().toISOString().replace(/[:T]/g, "-").slice(0, 16)}.txt`;
+      const blob = new Blob([text], { type: "text/plain" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
+    function clearAll() {
+      if (!confirm("Are you sure you want to clear everything?")) return;
+      jobDescriptionTextarea.value = "";
+      generatedProposalTextarea.value = "";
+      charCount.textContent = "0";
+      charMin.className = "text-muted ms-2";
+      charMin.textContent = "(minimum 50 required)";
+      generateBtn.disabled = true;
+      resultsSection.classList.add("d-none");
+      loadingState.classList.add("d-none");
+      portfolioInfo.classList.add("d-none");
+    }
+
+    async function loadPortfolioCount() {
+      try {
+        const result = await dashboardAPI.portfolio.list();
+        const count = result.count || 0;
+        portfolioCount.textContent = `${count} Project${count !== 1 ? "s" : ""}`;
+        portfolioStatus.innerHTML = count > 0
+          ? `<div class="text-success"><i class="fas fa-check-circle me-2"></i>${count} project(s) loaded.</div>`
+          : `<div class="text-warning"><i class="fas fa-exclamation-triangle me-2"></i>No portfolio projects found.</div>`;
+      } catch (err) {
+        portfolioCount.textContent = "Error";
+        portfolioStatus.innerHTML = `<div class="text-danger"><i class="fas fa-exclamation-circle me-2"></i>Failed to load portfolio.</div>`;
+      }
+    }
+
+    generateBtn.addEventListener("click", generateProposal);
+    generateNewBtn?.addEventListener("click", generateProposal);
+    copyBtn?.addEventListener("click", copyProposal);
+    downloadBtn?.addEventListener("click", downloadProposal);
+    clearBtn?.addEventListener("click", clearAll);
+    window.clearForm = clearAll;
+
+    jobDescriptionTextarea.addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (!generateBtn.disabled) generateProposal();
+      }
+    });
+
+    loadPortfolioCount();
+  });
+</script>
+{% endblock %}
