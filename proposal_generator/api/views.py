@@ -10,6 +10,84 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class GenerateCustomProposalView(APIView):
+    """
+    API endpoint to generate job proposals with custom portfolio selection and external links
+    
+    POST /proposals/api/generate/custom/
+    {
+        "job_description": "Your job description here...",
+        "client_name": "John Smith",
+        "selected_projects": [{"id": 1, "name": "Project 1", ...}, ...],
+        "external_links": {
+            "github": true,
+            "stackoverflow": false,
+            "website": true
+        },
+        "user_id": "user123"
+    }
+    """
+    
+    def post(self, request):
+        try:
+            job_description = request.data.get('job_description')
+            client_name = request.data.get('client_name', '')
+            selected_projects = request.data.get('selected_projects', [])
+            external_links = request.data.get('external_links', {})
+            user_id = request.data.get('user_id', 'user123')  # Default for backward compatibility
+            
+            # Validate required fields
+            if not job_description:
+                return Response(
+                    {"error": "job_description is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate job description length
+            if len(job_description.strip()) < 50:
+                return Response(
+                    {"error": "Job description must be at least 50 characters long"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Initialize proposal service and generate proposal
+            proposal_service = ProposalService()
+            
+            # Generate the custom proposal
+            generated_proposal = proposal_service.generate_custom_proposal(
+                job_description=job_description,
+                client_name=client_name,
+                selected_projects=selected_projects,
+                external_links=external_links
+            )
+            
+            logger.info(f"Generated custom proposal for user {user_id}")
+            
+            # Prepare response
+            response_data = {
+                "generated_proposal": generated_proposal,
+                "selected_projects_count": len(selected_projects),
+                "client_name": client_name,
+                "external_links": external_links
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            logger.error(f"Error in GenerateCustomProposalView: {str(e)}")
+            logger.error(f"Full traceback: {error_details}")
+            return Response(
+                {
+                    "error": f"Failed to generate proposal: {str(e)}",
+                    "details": str(e),
+                    "type": type(e).__name__
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
 class GenerateProposalView(APIView):
     """
     API endpoint to generate job proposals based on job descriptions
@@ -116,9 +194,16 @@ class GenerateProposalView(APIView):
             return Response(response_data, status=status.HTTP_200_OK)
             
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
             logger.error(f"Error in GenerateProposalView: {str(e)}")
+            logger.error(f"Full traceback: {error_details}")
             return Response(
-                {"error": f"Failed to generate proposal: {str(e)}"},
+                {
+                    "error": f"Failed to generate proposal: {str(e)}",
+                    "details": str(e),
+                    "type": type(e).__name__
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

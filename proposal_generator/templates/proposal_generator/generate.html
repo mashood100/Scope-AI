@@ -30,6 +30,20 @@
             Our AI will analyze the requirements and create a tailored response highlighting your relevant experience.
           </p>
 
+          <!-- Client Name Input -->
+          <div class="mb-3">
+            <label for="clientName" class="form-label fw-bold">
+              Client Name (Optional)
+            </label>
+            <input
+              id="clientName"
+              type="text"
+              class="form-control"
+              placeholder="Enter client's name for personalized greeting"
+              maxlength="100"
+            />
+          </div>
+
           <!-- Job Description Input -->
           <div class="mb-3">
             <label for="jobDescription" class="form-label fw-bold">
@@ -45,6 +59,46 @@
             <div class="form-text">
               <span id="charCount">0</span>/5000 characters
               <span id="charMin" class="text-muted ms-2">(minimum 50 required)</span>
+            </div>
+          </div>
+
+          <!-- Portfolio Selection -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">
+              Select Portfolio Projects
+            </label>
+            <div id="portfolioSelection" class="border rounded p-3">
+              <div class="text-center text-muted py-3">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                <span>Loading portfolio projects...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- External Links Selection -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">
+              Include External Links
+            </label>
+            <div class="form-check-group">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="includeGithub" checked>
+                <label class="form-check-label" for="includeGithub">
+                  GitHub Profile (https://github.com/mashood100)
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="includeStackOverflow">
+                <label class="form-check-label" for="includeStackOverflow">
+                  Stack Overflow Profile (https://stackoverflow.com/users/12777999/mashood-h)
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="includeWebsite">
+                <label class="form-check-label" for="includeWebsite">
+                  Personal Website
+                </label>
+              </div>
             </div>
           </div>
 
@@ -141,6 +195,7 @@
 {% block extra_js %}
 <script>
   document.addEventListener("DOMContentLoaded", function () {
+    const clientNameInput = document.getElementById("clientName");
     const jobDescriptionTextarea = document.getElementById("jobDescription");
     const generateBtn = document.getElementById("generateBtn");
     const loadingState = document.getElementById("loadingState");
@@ -156,6 +211,10 @@
     const matchedProjects = document.getElementById("matchedProjects");
     const portfolioCount = document.getElementById("portfolioCount");
     const portfolioStatus = document.getElementById("portfolioStatus");
+    const portfolioSelection = document.getElementById("portfolioSelection");
+    
+    let allPortfolioProjects = [];
+    let selectedProjectIds = [];
 
     jobDescriptionTextarea.addEventListener("input", function () {
       const count = this.value.length;
@@ -172,7 +231,13 @@
     });
 
     async function generateProposal() {
+      // Debug: Check if API is available
+      console.log('dashboardAPI:', typeof dashboardAPI);
+      console.log('dashboardAPI.proposal:', typeof dashboardAPI?.proposal);
+      console.log('dashboardAPI.proposal.generateCustom:', typeof dashboardAPI?.proposal?.generateCustom);
+      
       const jobDescription = jobDescriptionTextarea.value.trim();
+      const clientName = clientNameInput.value.trim();
       if (jobDescription.length < 50) {
         alert("Job description must be at least 50 characters long.");
         return;
@@ -183,13 +248,45 @@
       resultsSection.classList.add("d-none");
 
       try {
-        const result = await dashboardAPI.proposal.generate(jobDescription);
+        // Get selected portfolio projects
+        const selectedProjects = allPortfolioProjects.filter(p => 
+          selectedProjectIds.includes(p.id)
+        );
+
+        // Get selected external links
+        const externalLinks = {
+          github: document.getElementById("includeGithub").checked,
+          stackoverflow: document.getElementById("includeStackOverflow").checked,
+          website: document.getElementById("includeWebsite").checked
+        };
+
+        // Check if generateCustom exists, otherwise use backup function
+        let result;
+        if (typeof dashboardAPI !== 'undefined' && dashboardAPI.proposal && dashboardAPI.proposal.generateCustom) {
+          result = await dashboardAPI.proposal.generateCustom({
+            job_description: jobDescription,
+            client_name: clientName,
+            selected_projects: selectedProjects,
+            external_links: externalLinks
+          });
+        } else {
+          console.warn('dashboardAPI.proposal.generateCustom not available, using backup function');
+          result = await generateCustomProposal({
+            job_description: jobDescription,
+            client_name: clientName,
+            selected_projects: selectedProjects,
+            external_links: externalLinks,
+            user_id: 'user123'
+          });
+        }
+        
         generatedProposalTextarea.value = result.generated_proposal;
-        if (result.relevant_projects_found > 0) {
+        
+        if (selectedProjects.length > 0) {
           portfolioInfo.classList.remove("d-none");
-          let html = `<p class="mb-2"><strong>${result.relevant_projects_found}</strong> relevant project(s) were matched:</p><ul class="mb-0">`;
-          result.included_projects.forEach(p => {
-            html += `<li><strong>${p.name}</strong> (${Math.round(p.similarity_score * 100)}%) ${
+          let html = `<p class="mb-2"><strong>${selectedProjects.length}</strong> selected project(s):</p><ul class="mb-0">`;
+          selectedProjects.forEach(p => {
+            html += `<li><strong>${p.name}</strong> ${
               p.github_url ? `<a href="${p.github_url}" target="_blank" class="ms-1"><i class="fas fa-external-link-alt"></i></a>` : ""
             }</li>`;
           });
@@ -198,11 +295,40 @@
         } else {
           portfolioInfo.classList.add("d-none");
         }
+        
         resultsSection.classList.remove("d-none");
         resultsSection.scrollIntoView({ behavior: "smooth" });
       } catch (err) {
         console.error("Error generating proposal:", err);
-        alert("Something went wrong.");
+        
+        // Display detailed error message
+        let errorMessage = "Error generating proposal: ";
+        if (err.message) {
+          errorMessage += err.message;
+        } else {
+          errorMessage += "Unknown error occurred";
+        }
+        
+        // Show error on screen instead of alert
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger mt-3';
+        errorDiv.innerHTML = `
+          <h6><i class="fas fa-exclamation-triangle me-2"></i>Generation Failed</h6>
+          <p class="mb-1">${errorMessage}</p>
+          <small class="text-muted">Check browser console for detailed error information.</small>
+        `;
+        
+        // Insert error message before the generate button
+        const generateBtnContainer = generateBtn.parentElement;
+        generateBtnContainer.insertBefore(errorDiv, generateBtnContainer.firstChild);
+        
+        // Remove error message after 10 seconds
+        setTimeout(() => {
+          if (errorDiv.parentElement) {
+            errorDiv.remove();
+          }
+        }, 10000);
+        
       } finally {
         loadingState.classList.add("d-none");
         generateBtn.disabled = false;
@@ -232,29 +358,123 @@
 
     function clearAll() {
       if (!confirm("Are you sure you want to clear everything?")) return;
+      clientNameInput.value = "";
       jobDescriptionTextarea.value = "";
       generatedProposalTextarea.value = "";
       charCount.textContent = "0";
       charMin.className = "text-muted ms-2";
       charMin.textContent = "(minimum 50 required)";
       generateBtn.disabled = true;
+      selectedProjectIds = [];
+      document.getElementById("includeGithub").checked = true;
+      document.getElementById("includeStackOverflow").checked = false;
+      document.getElementById("includeWebsite").checked = false;
       resultsSection.classList.add("d-none");
       loadingState.classList.add("d-none");
       portfolioInfo.classList.add("d-none");
+      renderPortfolioSelection();
     }
 
     async function loadPortfolioCount() {
       try {
         const result = await dashboardAPI.portfolio.list();
-        const count = result.count || 0;
+        allPortfolioProjects = result.results || [];
+        const count = allPortfolioProjects.length;
         portfolioCount.textContent = `${count} Project${count !== 1 ? "s" : ""}`;
         portfolioStatus.innerHTML = count > 0
           ? `<div class="text-success"><i class="fas fa-check-circle me-2"></i>${count} project(s) loaded.</div>`
           : `<div class="text-warning"><i class="fas fa-exclamation-triangle me-2"></i>No portfolio projects found.</div>`;
+        
+        renderPortfolioSelection();
       } catch (err) {
         portfolioCount.textContent = "Error";
         portfolioStatus.innerHTML = `<div class="text-danger"><i class="fas fa-exclamation-circle me-2"></i>Failed to load portfolio.</div>`;
       }
+    }
+
+    function renderPortfolioSelection() {
+      if (allPortfolioProjects.length === 0) {
+        portfolioSelection.innerHTML = `<div class="text-warning text-center py-3"><i class="fas fa-exclamation-triangle me-2"></i>No portfolio projects found. <a href="/proposals/portfolio/" class="ms-2">Add projects</a></div>`;
+        return;
+      }
+
+      let html = '<div class="row">';
+      allPortfolioProjects.forEach(project => {
+        const isSelected = selectedProjectIds.includes(project.id);
+        html += `
+          <div class="col-md-6 mb-3">
+            <div class="form-check">
+              <input 
+                class="form-check-input" 
+                type="checkbox" 
+                id="project_${project.id}" 
+                ${isSelected ? 'checked' : ''}
+                onchange="toggleProjectSelection(${project.id})"
+              >
+              <label class="form-check-label" for="project_${project.id}">
+                <strong>${project.name}</strong>
+                <br><small class="text-muted">${project.ai_summary || project.description}</small>
+                ${project.technologies ? `<br><span class="badge bg-secondary">${project.technologies.slice(0, 2).join(', ')}${project.technologies.length > 2 ? '...' : ''}</span>` : ''}
+              </label>
+            </div>
+          </div>`;
+      });
+      html += '</div>';
+      
+      if (selectedProjectIds.length > 0) {
+        html += `<div class="mt-2"><small class="text-info">✓ ${selectedProjectIds.length} project(s) selected</small></div>`;
+      }
+      
+      portfolioSelection.innerHTML = html;
+    }
+
+    function toggleProjectSelection(projectId) {
+      const index = selectedProjectIds.indexOf(projectId);
+      if (index > -1) {
+        selectedProjectIds.splice(index, 1);
+      } else {
+        selectedProjectIds.push(projectId);
+      }
+      renderPortfolioSelection();
+    }
+
+    // Make toggle function global
+    window.toggleProjectSelection = toggleProjectSelection;
+
+    // Backup API function if dashboard.js doesn't load
+    async function generateCustomProposal(data) {
+      const response = await fetch('/proposals/api/generate/custom/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      
+      return await response.json();
+    }
+
+    function getCSRFToken() {
+      const csrfCookie = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('csrftoken='));
+      
+      if (csrfCookie) {
+        return csrfCookie.split('=')[1];
+      }
+      
+      const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      if (csrfInput) {
+        return csrfInput.value;
+      }
+      
+      return null;
     }
 
     generateBtn.addEventListener("click", generateProposal);

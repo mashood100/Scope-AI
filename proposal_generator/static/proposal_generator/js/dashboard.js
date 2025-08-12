@@ -172,15 +172,31 @@ const api = {
 
         try {
             const response = await fetch(url, config);
-            const data = await response.json();
+            
+            let data;
+            try {
+                data = await response.json();
+            } catch (jsonError) {
+                // If response isn't JSON, create error with status text
+                throw new Error(`Server Error: ${response.status} ${response.statusText}`);
+            }
             
             if (!response.ok) {
-                throw new Error(data.error || `HTTP ${response.status}`);
+                // Provide detailed error message
+                const errorMsg = data.error || data.message || `HTTP ${response.status}: ${response.statusText}`;
+                console.error('API Error Details:', {
+                    url,
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: data
+                });
+                throw new Error(errorMsg);
             }
             
             return data;
         } catch (error) {
             console.error('API Error:', error);
+            console.error('Request details:', { url, config });
             throw error;
         }
     },
@@ -224,6 +240,14 @@ const api = {
             method: 'POST',
             body: JSON.stringify({
                 job_description: jobDescription,
+                user_id: userId
+            })
+        }),
+
+        generateCustom: (data, userId = CURRENT_USER) => api.call('/generate/custom/', {
+            method: 'POST',
+            body: JSON.stringify({
+                ...data,
                 user_id: userId
             })
         })

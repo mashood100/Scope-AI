@@ -1,6 +1,6 @@
 from django.urls import path
 from .api.views import (
-    GenerateProposalView, UserProposalsView, ProposalDetailView,
+    GenerateProposalView, GenerateCustomProposalView, UserProposalsView, ProposalDetailView,
     CreatePortfolioView, UserPortfolioView, PortfolioDetailView, SimilarProjectsView
 )
 from .api.ui_views import DashboardView, PortfolioView, GenerateView, dashboard_stats
@@ -14,6 +14,7 @@ urlpatterns = [
     
     # Proposal API endpoints
     path('api/generate/', GenerateProposalView.as_view(), name='generate-proposal'),
+    path('api/generate/custom/', GenerateCustomProposalView.as_view(), name='generate-custom-proposal'),
     path('api/user/<str:user_id>/', UserProposalsView.as_view(), name='user-proposals'),
     path('api/detail/<int:proposal_id>/', ProposalDetailView.as_view(), name='proposal-detail'),
     
