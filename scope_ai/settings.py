@@ -18,23 +18,22 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables
-load_dotenv(BASE_DIR / '.env')
+# Only load .env file if it exists (for local development)
+env_file = BASE_DIR / '.env'
+if env_file.exists():
+    load_dotenv(env_file)
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-l7uny&pb*yx&(%@j89dhl^8cfdin991lh&sl9muboiyc1#=y-k'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-l7uny&pb*yx&(%@j89dhl^8cfdin991lh&sl9muboiyc1#=y-k')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = [
-    'scope-ai-production.up.railway.app',
-    'localhost',
-    '127.0.0.1',
-]
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'scope-ai-production.up.railway.app,localhost,127.0.0.1').split(',')
 
 
 # Application definition
