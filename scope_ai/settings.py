@@ -1,3 +1,4 @@
+
 """
 Django settings for scope_ai project.
 
@@ -17,25 +18,29 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables
-load_dotenv(BASE_DIR / 'dev.env')
-
+# Load environment variables - only load from file if not on Railway
+if not os.getenv('RAILWAY_ENVIRONMENT'):
+    # Load dev.env file for local development
+    load_dotenv(BASE_DIR / 'dev.env')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-l7uny&pb*yx&(%@j89dhl^8cfdin991lh&sl9muboiyc1#=y-k'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-l7uny&pb*yx&(%@j89dhl^8cfdin991lh&sl9muboiyc1#=y-k')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = [    
+ALLOWED_HOSTS = [
     'scope-ai-production.up.railway.app',
     'localhost',
     '127.0.0.1',
 ]
 
+# Add Railway's dynamic hostname if available
+if os.getenv('RAILWAY_PUBLIC_DOMAIN'):
+    ALLOWED_HOSTS.append(os.getenv('RAILWAY_PUBLIC_DOMAIN'))
 
 # Application definition
 
@@ -53,6 +58,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Add for static files on Railway
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -81,17 +87,22 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'scope_ai.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Use PostgreSQL on Railway, SQLite locally
+if os.getenv('DATABASE_URL'):
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(os.getenv('DATABASE_URL'))
     }
-}
-
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -111,7 +122,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
@@ -123,11 +133,11 @@ USE_I18N = True
 
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # Required for Railway
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -155,3 +165,10 @@ REST_FRAMEWORK = {
 # CSRF Configuration
 CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to access CSRF cookie
 CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Security settings for production
+if os.getenv('RAILWAY_ENVIRONMENT'):
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
