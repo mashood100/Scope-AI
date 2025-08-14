@@ -30,7 +30,11 @@ SECRET_KEY = 'django-insecure-l7uny&pb*yx&(%@j89dhl^8cfdin991lh&sl9muboiyc1#=y-k
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [    
+    'scope-ai-production.up.railway.app',
+    'localhost',
+    '127.0.0.1',
+]
 
 
 # Application definition
