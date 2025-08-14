@@ -23,6 +23,9 @@ env_file = BASE_DIR / '.env'
 if env_file.exists():
     load_dotenv(env_file)
 
+# Detect if we're running on Railway
+RAILWAY_ENVIRONMENT = os.getenv('RAILWAY_ENVIRONMENT_NAME') == 'production'
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -31,7 +34,10 @@ if env_file.exists():
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-l7uny&pb*yx&(%@j89dhl^8cfdin991lh&sl9muboiyc1#=y-k')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+if RAILWAY_ENVIRONMENT:
+    DEBUG = False
+else:
+    DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'scope-ai-production.up.railway.app,localhost,127.0.0.1').split(',')
 
