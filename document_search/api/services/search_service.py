@@ -14,7 +14,7 @@ class SearchService:
         self.document_store = DocumentStore()
         self.embedding_service = EmbeddingService()
         self.chat_model = ChatOpenAI(
-            api_key="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",
+            api_key=settings.OPENAI_API_KEY,
             model_name="gpt-3.5-turbo",
             temperature=0.7
         )

@@ -1,17 +1,15 @@
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from django.conf import settings
-openai_api_key = "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"
 class EmbeddingService:
     def __init__(self):
         self.embeddings = OpenAIEmbeddings(
             model="text-embedding-3-small",
-        openai_api_key=openai_api_key
-
+            openai_api_key=settings.OPENAI_API_KEY
         )
         self.chat_model = ChatOpenAI(
             model="gpt-3.5-turbo",
-            openai_api_key=openai_api_key
+            openai_api_key=settings.OPENAI_API_KEY
         )
         self.summary_prompt = ChatPromptTemplate.from_messages([
             ("system", "Summarize the following text concisely:"),
