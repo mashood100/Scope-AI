@@ -1,6 +1,7 @@
 from django.urls import path
 from .api.views import (
     GenerateProposalView, GenerateCustomProposalView, UserProposalsView, ProposalDetailView,
+    ProposalSearchView, ProposalStatsView, DeleteProposalView,
     CreatePortfolioView, UserPortfolioView, PortfolioDetailView, SimilarProjectsView
 )
 from .api.ui_views import DashboardView, PortfolioView, GenerateView, dashboard_stats
@@ -16,7 +17,10 @@ urlpatterns = [
     path('api/generate/', GenerateProposalView.as_view(), name='generate-proposal'),
     path('api/generate/custom/', GenerateCustomProposalView.as_view(), name='generate-custom-proposal'),
     path('api/user/<str:user_id>/', UserProposalsView.as_view(), name='user-proposals'),
-    path('api/detail/<int:proposal_id>/', ProposalDetailView.as_view(), name='proposal-detail'),
+    path('api/detail/<str:proposal_id>/', ProposalDetailView.as_view(), name='proposal-detail'),
+    path('api/search/', ProposalSearchView.as_view(), name='proposal-search'),
+    path('api/stats/<str:user_id>/', ProposalStatsView.as_view(), name='proposal-stats'),
+    path('api/delete/<str:proposal_id>/', DeleteProposalView.as_view(), name='delete-proposal'),
     
     # Portfolio API endpoints
     path('api/portfolio/create/', CreatePortfolioView.as_view(), name='create-portfolio'),

@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .services.proposal_service import ProposalService
 from .services.portfolio_service import PortfolioAnalysisService
+from .services.mongo_proposal_service import MongoProposalService
 from .models import JobProposal, Portfolio
 from rest_framework.pagination import PageNumberPagination
 import logging
@@ -61,10 +62,26 @@ class GenerateCustomProposalView(APIView):
                 external_links=external_links
             )
             
-            logger.info(f"Generated custom proposal for user {user_id}")
+            # Save to MongoDB
+            mongo_service = MongoProposalService()
+            metadata = proposal_service.extract_job_metadata(job_description)
+            
+            proposal_data = {
+                "job_description": job_description,
+                "generated_proposal": generated_proposal,
+                "user_id": user_id,
+                "job_title": metadata.get("job_title"),
+                "budget_range": metadata.get("budget_range"),
+                "project_duration": metadata.get("project_duration")
+            }
+            
+            proposal_id = mongo_service.create_proposal(proposal_data)
+            
+            logger.info(f"Generated custom proposal for user {user_id}, saved to MongoDB: {proposal_id}")
             
             # Prepare response
             response_data = {
+                "proposal_id": proposal_id,
                 "generated_proposal": generated_proposal,
                 "selected_projects_count": len(selected_projects),
                 "client_name": client_name,
@@ -170,10 +187,26 @@ class GenerateProposalView(APIView):
                 job_description, relevant_projects
             )
             
-            logger.info(f"Generated proposal for user {user_id}")
+            # Save to MongoDB
+            mongo_service = MongoProposalService()
+            metadata = proposal_service.extract_job_metadata(job_description)
+            
+            proposal_data = {
+                "job_description": job_description,
+                "generated_proposal": generated_proposal,
+                "user_id": user_id,
+                "job_title": metadata.get("job_title"),
+                "budget_range": metadata.get("budget_range"),
+                "project_duration": metadata.get("project_duration")
+            }
+            
+            proposal_id = mongo_service.create_proposal(proposal_data)
+            
+            logger.info(f"Generated proposal for user {user_id}, saved to MongoDB: {proposal_id}")
             
             # Prepare response with relevant projects info
             response_data = {
+                "proposal_id": proposal_id,
                 "generated_proposal": generated_proposal,
                 "relevant_projects_found": len(relevant_projects),
             }
@@ -217,29 +250,41 @@ class UserProposalsView(APIView):
     
     def get(self, request, user_id):
         try:
-            # Get all proposals for the user
-            proposals = JobProposal.objects.filter(user_id=user_id)
+            # Get pagination parameters
+            page = int(request.query_params.get('page', 1))
+            page_size = int(request.query_params.get('page_size', 10))
             
-            # Paginate results
-            paginator = PageNumberPagination()
-            paginator.page_size = 10
-            paginated_proposals = paginator.paginate_queryset(proposals, request)
+            # Get proposals from MongoDB
+            mongo_service = MongoProposalService()
+            result = mongo_service.get_user_proposals(user_id, page, page_size)
             
-            # Serialize the data
+            # Format proposals data for response
             proposals_data = []
-            for proposal in paginated_proposals:
+            for proposal in result["proposals"]:
+                # Truncate job description for list view
+                job_desc = proposal.get("job_description", "")
+                truncated_desc = job_desc[:200] + "..." if len(job_desc) > 200 else job_desc
+                
                 proposals_data.append({
-                    "id": proposal.id,
-                    "job_title": proposal.job_title,
-                    "job_description": proposal.job_description[:200] + "..." if len(proposal.job_description) > 200 else proposal.job_description,
-                    "generated_proposal": proposal.generated_proposal,
-                    "budget_range": proposal.budget_range,
-                    "project_duration": proposal.project_duration,
-                    "created_at": proposal.created_at,
-                    "updated_at": proposal.updated_at
+                    "id": proposal["id"],
+                    "job_title": proposal.get("job_title"),
+                    "job_description": truncated_desc,
+                    "generated_proposal": proposal.get("generated_proposal"),
+                    "budget_range": proposal.get("budget_range"),
+                    "project_duration": proposal.get("project_duration"),
+                    "created_at": proposal.get("created_at"),
+                    "updated_at": proposal.get("updated_at")
                 })
             
-            return paginator.get_paginated_response(proposals_data)
+            # Return paginated response
+            return Response({
+                "results": proposals_data,
+                "count": result["pagination"]["total_count"],
+                "next": f"?page={page + 1}" if result["pagination"]["has_next"] else None,
+                "previous": f"?page={page - 1}" if result["pagination"]["has_previous"] else None,
+                "total_pages": result["pagination"]["total_pages"],
+                "current_page": result["pagination"]["current_page"]
+            }, status=status.HTTP_200_OK)
             
         except Exception as e:
             logger.error(f"Error in UserProposalsView: {str(e)}")
@@ -258,31 +303,117 @@ class ProposalDetailView(APIView):
     
     def get(self, request, proposal_id):
         try:
-            proposal = JobProposal.objects.get(id=proposal_id)
+            # Get proposal from MongoDB
+            mongo_service = MongoProposalService()
+            proposal = mongo_service.get_proposal_by_id(proposal_id)
             
-            proposal_data = {
-                "id": proposal.id,
-                "job_title": proposal.job_title,
-                "job_description": proposal.job_description,
-                "generated_proposal": proposal.generated_proposal,
-                "budget_range": proposal.budget_range,
-                "project_duration": proposal.project_duration,
-                "user_id": proposal.user_id,
-                "created_at": proposal.created_at,
-                "updated_at": proposal.updated_at
-            }
+            if not proposal:
+                return Response(
+                    {"error": "Proposal not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
             
-            return Response(proposal_data, status=status.HTTP_200_OK)
+            return Response(proposal, status=status.HTTP_200_OK)
             
-        except JobProposal.DoesNotExist:
-            return Response(
-                {"error": "Proposal not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except Exception as e:
             logger.error(f"Error in ProposalDetailView: {str(e)}")
             return Response(
                 {"error": f"Failed to retrieve proposal: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ProposalSearchView(APIView):
+    """
+    API endpoint to search proposals
+    
+    POST /proposals/api/search/
+    {
+        "user_id": "user123",
+        "search_query": "react development"
+    }
+    """
+    
+    def post(self, request):
+        try:
+            user_id = request.data.get('user_id')
+            search_query = request.data.get('search_query')
+            
+            if not user_id or not search_query:
+                return Response(
+                    {"error": "user_id and search_query are required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Search proposals in MongoDB
+            mongo_service = MongoProposalService()
+            proposals = mongo_service.search_proposals(user_id, search_query)
+            
+            return Response({
+                "results": proposals,
+                "count": len(proposals),
+                "search_query": search_query
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error in ProposalSearchView: {str(e)}")
+            return Response(
+                {"error": f"Failed to search proposals: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class ProposalStatsView(APIView):
+    """
+    API endpoint to get proposal statistics for a user
+    
+    GET /proposals/api/stats/{user_id}/
+    """
+    
+    def get(self, request, user_id):
+        try:
+            # Get stats from MongoDB
+            mongo_service = MongoProposalService()
+            stats = mongo_service.get_proposals_stats(user_id)
+            
+            return Response(stats, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error in ProposalStatsView: {str(e)}")
+            return Response(
+                {"error": f"Failed to retrieve proposal stats: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class DeleteProposalView(APIView):
+    """
+    API endpoint to delete a proposal
+    
+    DELETE /proposals/api/delete/{proposal_id}/
+    """
+    
+    def delete(self, request, proposal_id):
+        try:
+            # Delete proposal from MongoDB
+            mongo_service = MongoProposalService()
+            success = mongo_service.delete_proposal(proposal_id)
+            
+            if not success:
+                return Response(
+                    {"error": "Proposal not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            return Response({
+                "success": True,
+                "message": "Proposal deleted successfully"
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error in DeleteProposalView: {str(e)}")
+            return Response(
+                {"error": f"Failed to delete proposal: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
