@@ -6,17 +6,4 @@ services:
     volumes:
       - .:/app
     env_file:
-      - dev.env
-    depends_on:
-      - mongodb
-
-  mongodb:
-    image: mongodb/mongodb-community-server:6.0
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-    command: ["mongod", "--bind_ip_all"]
-
-volumes:
-  mongodb_data:
+      - .env

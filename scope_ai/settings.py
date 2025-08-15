@@ -39,7 +39,7 @@ if RAILWAY_ENVIRONMENT:
 else:
     DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'scope-ai-production.up.railway.app,localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -92,8 +92,14 @@ WSGI_APPLICATION = 'scope_ai.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'djongo',
+        'NAME': os.getenv('MONGODB_NAME', 'scope_test'),
+        'CLIENT': {
+            'host': os.getenv('MONGODB_URI', 'mongodb://localhost:27017/'),
+            'serverSelectionTimeoutMS': 5000,
+            'connectTimeoutMS': 10000,
+            'socketTimeoutMS': 10000,
+        }
     }
 }
 
