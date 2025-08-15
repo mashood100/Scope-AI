@@ -24,4 +24,4 @@ COPY . .
 EXPOSE 8000
 
 # Run the application
-CMD sh -c "python manage.py migrate && gunicorn scope_ai.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 3" 
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"] 

@@ -18,28 +18,19 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables
-# Only load .env file if it exists (for local development)
-env_file = BASE_DIR / '.env'
-if env_file.exists():
-    load_dotenv(env_file)
-
-# Detect if we're running on Railway
-RAILWAY_ENVIRONMENT = os.getenv('RAILWAY_ENVIRONMENT_NAME') == 'production'
+load_dotenv(BASE_DIR / 'dev.env')
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-l7uny&pb*yx&(%@j89dhl^8cfdin991lh&sl9muboiyc1#=y-k')
+SECRET_KEY = 'django-insecure-l7uny&pb*yx&(%@j89dhl^8cfdin991lh&sl9muboiyc1#=y-k'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-if RAILWAY_ENVIRONMENT:
-    DEBUG = False
-else:
-    DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+DEBUG = True
 
-ALLOWED_HOSTS = ['*',"https://scope-ai-production.up.railway.app"]
+ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -92,14 +83,8 @@ WSGI_APPLICATION = 'scope_ai.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'djongo',
-        'NAME': os.getenv('MONGODB_NAME', 'scope_test'),
-        'CLIENT': {
-            'host': os.getenv('MONGODB_URI', 'mongodb://localhost:27017/'),
-            'serverSelectionTimeoutMS': 5000,
-            'connectTimeoutMS': 10000,
-            'socketTimeoutMS': 10000,
-        }
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 

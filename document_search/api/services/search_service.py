@@ -1,7 +1,7 @@
 from .embedding_service import EmbeddingService
 from ..models import DocumentStore
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import SystemMessage, HumanMessage, AIMessage
 from langchain.prompts import ChatPromptTemplate
 from django.conf import settings
 from typing import List, Tuple, Dict, Any
@@ -14,7 +14,7 @@ class SearchService:
         self.document_store = DocumentStore()
         self.embedding_service = EmbeddingService()
         self.chat_model = ChatOpenAI(
-            api_key=settings.OPENAI_API_KEY,
+            api_key="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",
             model_name="gpt-3.5-turbo",
             temperature=0.7
         )
