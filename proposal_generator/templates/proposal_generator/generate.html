@@ -215,6 +215,7 @@
     
     let allPortfolioProjects = [];
     let selectedProjectIds = [];
+    let isGenerating = false; // Flag to prevent multiple simultaneous generations
 
     jobDescriptionTextarea.addEventListener("input", function () {
       const count = this.value.length;
@@ -231,6 +232,12 @@
     });
 
     async function generateProposal() {
+      // Prevent multiple simultaneous generations
+      if (isGenerating) {
+        console.log('Generation already in progress, ignoring duplicate request');
+        return;
+      }
+      
       // Debug: Check if API is available
       console.log('dashboardAPI:', typeof dashboardAPI);
       console.log('dashboardAPI.proposal:', typeof dashboardAPI?.proposal);
@@ -243,7 +250,10 @@
         return;
       }
 
+      // Set generation flag and disable button
+      isGenerating = true;
       generateBtn.disabled = true;
+      generateNewBtn.disabled = true; // Also disable the "Generate New" button
       loadingState.classList.remove("d-none");
       resultsSection.classList.add("d-none");
 
@@ -330,8 +340,11 @@
         }, 10000);
         
       } finally {
+        // Reset generation state
+        isGenerating = false;
         loadingState.classList.add("d-none");
         generateBtn.disabled = false;
+        generateNewBtn.disabled = false;
       }
     }
 
@@ -358,6 +371,10 @@
 
     function clearAll() {
       if (!confirm("Are you sure you want to clear everything?")) return;
+      
+      // Reset generation state
+      isGenerating = false;
+      
       clientNameInput.value = "";
       jobDescriptionTextarea.value = "";
       generatedProposalTextarea.value = "";
@@ -365,6 +382,7 @@
       charMin.className = "text-muted ms-2";
       charMin.textContent = "(minimum 50 required)";
       generateBtn.disabled = true;
+      generateNewBtn.disabled = false;
       selectedProjectIds = [];
       document.getElementById("includeGithub").checked = true;
       document.getElementById("includeStackOverflow").checked = false;

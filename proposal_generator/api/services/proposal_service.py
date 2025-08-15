@@ -314,12 +314,21 @@ Write the proposal as Mash H, emphasizing your expertise in the required technol
             if selected_projects:
                 relevant_project_mention = f"Mention the most relevant selected project briefly: {selected_projects[0]['name']}"
             
-            # Use the loaded prompt template
-            system_prompt = self.prompt_template.replace(
-                "{client_name}", bold_client_name if client_name.strip() else "𝐭𝐡𝐞𝐫𝐞"
-            ).replace(
-                "{role}", role
-            )
+            # Build the system prompt from the template
+            # Replace client name placeholder in template
+            if client_name.strip():
+                system_prompt = self.prompt_template.replace(
+                    "if client name provided: \"𝐇𝐢 {client_name},\" otherwise: \"𝐇𝐢 𝐭𝐡𝐞𝐫𝐞,\"",
+                    f"\"𝐇𝐢 {bold_client_name},\""
+                )
+            else:
+                system_prompt = self.prompt_template.replace(
+                    "if client name provided: \"𝐇𝐢 {client_name},\" otherwise: \"𝐇𝐢 𝐭𝐡𝐞𝐫𝐞,\"",
+                    "\"𝐇𝐢 𝐭𝐡𝐞𝐫𝐞,\""
+                )
+            
+            # Replace other placeholders
+            system_prompt = system_prompt.replace("{Client's problem}", role)
             
             # Add context information to the prompt
             if selected_projects:
