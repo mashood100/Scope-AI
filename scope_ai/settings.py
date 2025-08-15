@@ -79,12 +79,12 @@ WSGI_APPLICATION = 'scope_ai.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+# Using MongoDB only - no default database configured
+# All data operations use MongoDB directly via pymongo
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.dummy',
     }
 }
 

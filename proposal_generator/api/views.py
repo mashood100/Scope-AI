@@ -4,6 +4,7 @@ from rest_framework import status
 from .services.proposal_service import ProposalService
 from .services.portfolio_service import PortfolioAnalysisService
 from .services.mongo_proposal_service import MongoProposalService
+from .services.mongo_portfolio_service import MongoPortfolioService
 from .models import JobProposal, Portfolio
 from rest_framework.pagination import PageNumberPagination
 import logging
@@ -138,42 +139,19 @@ class GenerateProposalView(APIView):
             # Search for relevant portfolio projects
             relevant_projects = []
             try:
-                # Get user's portfolio projects with embeddings
-                projects = Portfolio.objects.filter(user_id=user_id).exclude(embedding_vector=[])
+                # Get user's portfolio projects with embeddings from MongoDB
+                mongo_portfolio_service = MongoPortfolioService()
+                similar_projects = mongo_portfolio_service.find_similar_projects(
+                    user_id, job_description, top_k=2
+                )
                 
-                if projects.exists():
-                    # Convert to list for similarity search
-                    projects_data = []
-                    for project in projects:
-                        projects_data.append({
-                            'id': project.id,
-                            'name': project.name,
-                            'description': project.description,
-                            'ai_summary': project.ai_summary,
-                            'tags': project.tags,
-                            'technologies': project.technologies,
-                            'project_type': project.project_type,
-                            'complexity_level': project.complexity_level,
-                            'embedding_vector': project.embedding_vector,
-                            'github_url': project.github_url,
-                            'live_url': project.live_url,
-                            'app_store_url': project.app_store_url,
-                            'is_featured': project.is_featured
-                        })
-                    
-                    # Find similar projects (top 2 most relevant)
-                    analysis_service = PortfolioAnalysisService()
-                    similar_projects = analysis_service.find_similar_projects(
-                        job_description, projects_data, top_k=2
-                    )
-                    
-                    # Filter projects with similarity > 0.6 (reasonably relevant)
-                    relevant_projects = [
-                        item for item in similar_projects 
-                        if item['similarity_score'] > 0.6
-                    ]
-                    
-                    logger.info(f"Found {len(relevant_projects)} relevant projects for user {user_id}")
+                # Filter projects with similarity > 0.6 (reasonably relevant)
+                relevant_projects = [
+                    item for item in similar_projects 
+                    if item['similarity_score'] > 0.6
+                ]
+                
+                logger.info(f"Found {len(relevant_projects)} relevant projects for user {user_id}")
                 
             except Exception as e:
                 logger.warning(f"Portfolio search failed for user {user_id}: {str(e)}")
@@ -484,36 +462,39 @@ class CreatePortfolioView(APIView):
             images = request.data.get('images', [])
             is_featured = request.data.get('is_featured', False)
             
-            # Create portfolio project
-            portfolio = Portfolio.objects.create(
-                name=name,
-                description=description,
-                user_id=user_id,
-                tags=ai_analysis['tags'],
-                ai_summary=ai_analysis['ai_summary'],
-                technologies=ai_analysis['technologies'],
-                project_type=ai_analysis['project_type'],
-                complexity_level=ai_analysis['complexity_level'],
-                embedding_vector=ai_analysis['embedding_vector'],
-                github_url=github_url,
-                live_url=live_url,
-                app_store_url=app_store_url,
-                images=images,
-                is_featured=is_featured
-            )
+            # Create portfolio project in MongoDB
+            mongo_portfolio_service = MongoPortfolioService()
             
-            logger.info(f"Created portfolio project {portfolio.id} for user {user_id}")
+            project_data = {
+                "name": name,
+                "description": description,
+                "user_id": user_id,
+                "tags": ai_analysis['tags'],
+                "ai_summary": ai_analysis['ai_summary'],
+                "technologies": ai_analysis['technologies'],
+                "project_type": ai_analysis['project_type'],
+                "complexity_level": ai_analysis['complexity_level'],
+                "embedding_vector": ai_analysis['embedding_vector'],
+                "github_url": github_url,
+                "live_url": live_url,
+                "app_store_url": app_store_url,
+                "images": images,
+                "is_featured": is_featured
+            }
+            
+            project_id = mongo_portfolio_service.create_portfolio_project(project_data)
+            
+            logger.info(f"Created portfolio project {project_id} for user {user_id}")
             
             return Response({
                 "success": True,
-                "project_id": portfolio.id,
-                "name": portfolio.name,
-                "ai_summary": portfolio.ai_summary,
-                "tags": portfolio.tags,
-                "technologies": portfolio.technologies,
-                "project_type": portfolio.project_type,
-                "complexity_level": portfolio.complexity_level,
-                "created_at": portfolio.created_at,
+                "project_id": project_id,
+                "name": name,
+                "ai_summary": ai_analysis['ai_summary'],
+                "tags": ai_analysis['tags'],
+                "technologies": ai_analysis['technologies'],
+                "project_type": ai_analysis['project_type'],
+                "complexity_level": ai_analysis['complexity_level'],
                 "message": "Portfolio project created successfully"
             }, status=status.HTTP_201_CREATED)
             
@@ -537,44 +518,58 @@ class UserPortfolioView(APIView):
             # Get filter parameters
             project_type = request.query_params.get('project_type')
             is_featured = request.query_params.get('is_featured')
+            page = int(request.query_params.get('page', 1))
+            page_size = int(request.query_params.get('page_size', 10))
             
-            # Build query
-            query = Portfolio.objects.filter(user_id=user_id)
-            
-            if project_type:
-                query = query.filter(project_type=project_type)
-            
+            # Convert is_featured to boolean if provided
+            is_featured_bool = None
             if is_featured is not None:
                 is_featured_bool = is_featured.lower() == 'true'
-                query = query.filter(is_featured=is_featured_bool)
             
-            # Paginate results
-            paginator = PageNumberPagination()
-            paginator.page_size = 10
-            paginated_projects = paginator.paginate_queryset(query, request)
+            # Get projects from MongoDB
+            mongo_portfolio_service = MongoPortfolioService()
+            result = mongo_portfolio_service.get_user_portfolio_projects(
+                user_id=user_id,
+                page=page,
+                page_size=page_size,
+                project_type=project_type,
+                is_featured=is_featured_bool
+            )
             
-            # Serialize the data
+            # Format projects data for response
             projects_data = []
-            for project in paginated_projects:
+            for project in result["projects"]:
+                # Truncate description for list view
+                description = project.get("description", "")
+                truncated_desc = description[:200] + "..." if len(description) > 200 else description
+                
                 projects_data.append({
-                    "id": project.id,
-                    "name": project.name,
-                    "description": project.description[:200] + "..." if len(project.description) > 200 else project.description,
-                    "ai_summary": project.ai_summary,
-                    "tags": project.tags,
-                    "technologies": project.technologies,
-                    "project_type": project.project_type,
-                    "complexity_level": project.complexity_level,
-                    "github_url": project.github_url,
-                    "live_url": project.live_url,
-                    "app_store_url": project.app_store_url,
-                    "images": project.images,
-                    "is_featured": project.is_featured,
-                    "created_at": project.created_at,
-                    "updated_at": project.updated_at
+                    "id": project["id"],
+                    "name": project.get("name"),
+                    "description": truncated_desc,
+                    "ai_summary": project.get("ai_summary"),
+                    "tags": project.get("tags", []),
+                    "technologies": project.get("technologies", []),
+                    "project_type": project.get("project_type"),
+                    "complexity_level": project.get("complexity_level"),
+                    "github_url": project.get("github_url"),
+                    "live_url": project.get("live_url"),
+                    "app_store_url": project.get("app_store_url"),
+                    "images": project.get("images", []),
+                    "is_featured": project.get("is_featured", False),
+                    "created_at": project.get("created_at"),
+                    "updated_at": project.get("updated_at")
                 })
             
-            return paginator.get_paginated_response(projects_data)
+            # Return paginated response
+            return Response({
+                "results": projects_data,
+                "count": result["pagination"]["total_count"],
+                "next": f"?page={page + 1}" if result["pagination"]["has_next"] else None,
+                "previous": f"?page={page - 1}" if result["pagination"]["has_previous"] else None,
+                "total_pages": result["pagination"]["total_pages"],
+                "current_page": result["pagination"]["current_page"]
+            }, status=status.HTTP_200_OK)
             
         except Exception as e:
             logger.error(f"Error in UserPortfolioView: {str(e)}")
@@ -595,35 +590,18 @@ class PortfolioDetailView(APIView):
     
     def get(self, request, project_id):
         try:
-            project = Portfolio.objects.get(id=project_id)
+            # Get project from MongoDB
+            mongo_portfolio_service = MongoPortfolioService()
+            project = mongo_portfolio_service.get_portfolio_project_by_id(project_id)
             
-            project_data = {
-                "id": project.id,
-                "name": project.name,
-                "description": project.description,
-                "user_id": project.user_id,
-                "tags": project.tags,
-                "ai_summary": project.ai_summary,
-                "technologies": project.technologies,
-                "project_type": project.project_type,
-                "complexity_level": project.complexity_level,
-                "github_url": project.github_url,
-                "live_url": project.live_url,
-                "app_store_url": project.app_store_url,
-                "images": project.images,
-                "is_featured": project.is_featured,
-                "created_at": project.created_at,
-                "updated_at": project.updated_at,
-                "embedding_dimensions": len(project.embedding_vector) if project.embedding_vector else 0
-            }
+            if not project:
+                return Response(
+                    {"error": "Portfolio project not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
             
-            return Response(project_data, status=status.HTTP_200_OK)
+            return Response(project, status=status.HTTP_200_OK)
             
-        except Portfolio.DoesNotExist:
-            return Response(
-                {"error": "Portfolio project not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except Exception as e:
             logger.error(f"Error in PortfolioDetailView GET: {str(e)}")
             return Response(
@@ -633,54 +611,82 @@ class PortfolioDetailView(APIView):
     
     def put(self, request, project_id):
         try:
-            project = Portfolio.objects.get(id=project_id)
+            # Get current project from MongoDB
+            mongo_portfolio_service = MongoPortfolioService()
+            current_project = mongo_portfolio_service.get_portfolio_project_by_id(project_id)
             
-            # Update basic fields
-            project.name = request.data.get('name', project.name)
-            new_description = request.data.get('description', project.description)
-            project.github_url = request.data.get('github_url', project.github_url)
-            project.live_url = request.data.get('live_url', project.live_url)
-            project.app_store_url = request.data.get('app_store_url', project.app_store_url)
-            project.images = request.data.get('images', project.images)
-            project.is_featured = request.data.get('is_featured', project.is_featured)
+            if not current_project:
+                return Response(
+                    {"error": "Portfolio project not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
             
-            # If description changed, re-run AI analysis
-            if new_description != project.description:
-                project.description = new_description
-                
+            # Prepare update data
+            update_data = {}
+            
+            # Update basic fields if provided
+            if 'name' in request.data:
+                update_data['name'] = request.data['name']
+            if 'github_url' in request.data:
+                update_data['github_url'] = request.data['github_url']
+            if 'live_url' in request.data:
+                update_data['live_url'] = request.data['live_url']
+            if 'app_store_url' in request.data:
+                update_data['app_store_url'] = request.data['app_store_url']
+            if 'images' in request.data:
+                update_data['images'] = request.data['images']
+            if 'is_featured' in request.data:
+                update_data['is_featured'] = request.data['is_featured']
+            
+            # Check if description changed (requires AI re-analysis)
+            new_description = request.data.get('description')
+            if new_description and new_description != current_project.get('description'):
                 logger.info(f"Re-analyzing project {project_id} due to description change")
                 analysis_service = PortfolioAnalysisService()
-                ai_analysis = analysis_service.analyze_project(project.name, project.description)
+                ai_analysis = analysis_service.analyze_project(
+                    update_data.get('name', current_project.get('name')), 
+                    new_description
+                )
                 
-                project.tags = ai_analysis['tags']
-                project.ai_summary = ai_analysis['ai_summary']
-                project.technologies = ai_analysis['technologies']
-                project.project_type = ai_analysis['project_type']
-                project.complexity_level = ai_analysis['complexity_level']
-                project.embedding_vector = ai_analysis['embedding_vector']
+                update_data.update({
+                    'description': new_description,
+                    'tags': ai_analysis['tags'],
+                    'ai_summary': ai_analysis['ai_summary'],
+                    'technologies': ai_analysis['technologies'],
+                    'project_type': ai_analysis['project_type'],
+                    'complexity_level': ai_analysis['complexity_level'],
+                    'embedding_vector': ai_analysis['embedding_vector']
+                })
+            elif new_description:
+                update_data['description'] = new_description
             
-            project.save()
+            # Update in MongoDB
+            success = mongo_portfolio_service.update_portfolio_project(project_id, update_data)
+            
+            if not success:
+                return Response(
+                    {"error": "Failed to update portfolio project"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            # Get updated project
+            updated_project = mongo_portfolio_service.get_portfolio_project_by_id(project_id)
             
             logger.info(f"Updated portfolio project {project_id}")
             
             return Response({
                 "success": True,
-                "project_id": project.id,
-                "name": project.name,
-                "ai_summary": project.ai_summary,
-                "tags": project.tags,
-                "technologies": project.technologies,
-                "project_type": project.project_type,
-                "complexity_level": project.complexity_level,
-                "updated_at": project.updated_at,
+                "project_id": project_id,
+                "name": updated_project.get('name'),
+                "ai_summary": updated_project.get('ai_summary'),
+                "tags": updated_project.get('tags'),
+                "technologies": updated_project.get('technologies'),
+                "project_type": updated_project.get('project_type'),
+                "complexity_level": updated_project.get('complexity_level'),
+                "updated_at": updated_project.get('updated_at'),
                 "message": "Portfolio project updated successfully"
             }, status=status.HTTP_200_OK)
             
-        except Portfolio.DoesNotExist:
-            return Response(
-                {"error": "Portfolio project not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except Exception as e:
             logger.error(f"Error in PortfolioDetailView PUT: {str(e)}")
             return Response(
@@ -690,9 +696,26 @@ class PortfolioDetailView(APIView):
     
     def delete(self, request, project_id):
         try:
-            project = Portfolio.objects.get(id=project_id)
-            project_name = project.name
-            project.delete()
+            # Get project info before deletion
+            mongo_portfolio_service = MongoPortfolioService()
+            project = mongo_portfolio_service.get_portfolio_project_by_id(project_id)
+            
+            if not project:
+                return Response(
+                    {"error": "Portfolio project not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            project_name = project.get('name', 'Unknown')
+            
+            # Delete from MongoDB
+            success = mongo_portfolio_service.delete_portfolio_project(project_id)
+            
+            if not success:
+                return Response(
+                    {"error": "Failed to delete portfolio project"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
             
             logger.info(f"Deleted portfolio project {project_id}: {project_name}")
             
@@ -701,11 +724,6 @@ class PortfolioDetailView(APIView):
                 "message": f"Portfolio project '{project_name}' deleted successfully"
             }, status=status.HTTP_200_OK)
             
-        except Portfolio.DoesNotExist:
-            return Response(
-                {"error": "Portfolio project not found"},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except Exception as e:
             logger.error(f"Error in PortfolioDetailView DELETE: {str(e)}")
             return Response(
@@ -745,38 +763,10 @@ class SimilarProjectsView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Get user's portfolio projects with embeddings
-            projects = Portfolio.objects.filter(user_id=user_id).exclude(embedding_vector=[])
-            
-            if not projects:
-                return Response({
-                    "similar_projects": [],
-                    "message": "No portfolio projects found with embeddings"
-                }, status=status.HTTP_200_OK)
-            
-            # Convert to list of dicts for similarity calculation
-            projects_data = []
-            for project in projects:
-                projects_data.append({
-                    'id': project.id,
-                    'name': project.name,
-                    'description': project.description,
-                    'ai_summary': project.ai_summary,
-                    'tags': project.tags,
-                    'technologies': project.technologies,
-                    'project_type': project.project_type,
-                    'complexity_level': project.complexity_level,
-                    'embedding_vector': project.embedding_vector,
-                    'github_url': project.github_url,
-                    'live_url': project.live_url,
-                    'app_store_url': project.app_store_url,
-                    'is_featured': project.is_featured
-                })
-            
-            # Find similar projects
-            analysis_service = PortfolioAnalysisService()
-            similar_projects = analysis_service.find_similar_projects(
-                job_description, projects_data, top_k
+            # Get user's portfolio projects with embeddings from MongoDB
+            mongo_portfolio_service = MongoPortfolioService()
+            similar_projects = mongo_portfolio_service.find_similar_projects(
+                user_id, job_description, top_k
             )
             
             # Format response
@@ -798,7 +788,7 @@ class SimilarProjectsView(APIView):
                     "similarity_score": round(item['similarity_score'], 4)
                 })
             
-            logger.info(f"Found {len(result)} similar projects for user {user_id}")
+            logger.info(f"Found {len(similar_projects)} similar projects for user {user_id}")
             
             return Response({
                 "similar_projects": result,

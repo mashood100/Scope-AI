@@ -25,6 +25,6 @@ urlpatterns = [
     # Portfolio API endpoints
     path('api/portfolio/create/', CreatePortfolioView.as_view(), name='create-portfolio'),
     path('api/portfolio/user/<str:user_id>/', UserPortfolioView.as_view(), name='user-portfolio'),
-    path('api/portfolio/detail/<int:project_id>/', PortfolioDetailView.as_view(), name='portfolio-detail'),
+    path('api/portfolio/detail/<str:project_id>/', PortfolioDetailView.as_view(), name='portfolio-detail'),
     path('api/portfolio/similar/', SimilarProjectsView.as_view(), name='similar-projects'),
 ] 
