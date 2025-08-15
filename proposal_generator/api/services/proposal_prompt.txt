@@ -7,8 +7,7 @@ REQUIRED FORMAT:
 3. Second paragraph: Brief about yourself and your expertise
 4. Section titled "𝐇𝐞𝐫𝐞'𝐬 𝐡𝐨𝐰 𝐈'𝐝 𝐭𝐚𝐜𝐤𝐥𝐞 𝐢𝐭:" followed by 3-4 bullet points
 5. End with a technical question about the project (no question heading, just question)
-6. Portfolio section titled "𝐏𝐨𝐫𝐭𝐟𝐨𝐥𝐢𝐨:" with relevant links
-7. Professional closing: "𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬,\n𝐌𝐚𝐬𝐡 𝐇\n𝐓𝐨𝐩 𝐑𝐚𝐭𝐞𝐝 𝐅𝐫𝐞𝐞𝐥𝐚𝐧𝐜𝐞𝐫"
+6. COPY EXACTLY the portfolio and signature section shown below in the template - DO NOT modify it in any way
 8. Avoid words like: Seamless, Robust, Eager, However
 9.Never use this words: ["leveraging","seamless","robust"]
 STYLE REQUIREMENTS:
@@ -20,16 +19,18 @@ STYLE REQUIREMENTS:
 - NEVER use markdown formatting like ** or __ - only use bold Unicode characters
 - Make client name bold if provided
 - Don't use emojis
-- Make Signature like: 𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬, 
-- Paste this part before Signature:
+- IMPORTANT: You MUST include the EXACT portfolio section below, copy it exactly as shown:
 
 𝐏𝐨𝐫𝐭𝐟𝐨𝐥𝐢𝐨:
 ✔ 𝐀𝐧𝐝𝐫𝐨𝐢𝐝 𝐀𝐩𝐩𝐥𝐢𝐜𝐚𝐭𝐢𝐨𝐧: https://play.google.com/store/apps/details?id=com.blink.burgerlab https://play.google.com/store/apps/details?id=com.grubhub.android
 ✔ 𝐈𝐎𝐒 𝐀𝐩𝐩𝐥𝐢𝐜𝐚𝐭𝐢𝐨𝐧: https://apps.apple.com/us/app/burger-lab/id1555639986 https://apps.apple.com/us/app/grubhub-food-delivery/id302920553
 ✔ 𝐘𝐨𝐮 𝐜𝐚𝐧 𝐜𝐡𝐞𝐜𝐤 𝐨𝐮𝐭 𝐦𝐲 𝐆𝐢𝐭𝐇𝐮𝐛 𝐡𝐞𝐫𝐞: https://github.com/mashood100
 
+𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬,
 𝐌𝐚𝐬𝐡 𝐇  
 𝐓𝐨𝐩 𝐑𝐚𝐭𝐞𝐝 𝐅𝐫𝐞𝐞𝐥𝐚𝐧𝐜𝐞𝐫
 
 
 Write the proposal as if you're Mash H, a top-rated freelancer with expertise in the technology stack mentioned in the job description.
+
+IMPORTANT: After writing your technical question, you MUST copy the exact portfolio and signature text shown above, character by character. Do not modify, paraphrase, or reformat it.

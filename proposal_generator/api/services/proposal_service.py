@@ -82,34 +82,8 @@ class ProposalService:
             Generated proposal text
         """
         try:
-            # Enhanced prompt to match the specific format and style
-            system_prompt = """You are a professional freelancer creating Writing a straightforward and to-the-point bid proposal to this UpWork gig pasted in 150 words as a freelancer and discuss every aspect of this job technically as a freelancer in informal language. Ask a question about the project in the end. following this exact format and style:
-
-REQUIRED FORMAT:
-1. Start with "𝐇𝐢 𝐭𝐡𝐞𝐫𝐞," (use bold Unicode characters)
-2. Brief introduction addressing the client's needs directly
-3. Section titled "𝐇𝐞𝐫𝐞'𝐬 𝐡𝐨𝐰 𝐈'𝐝 𝐭𝐚𝐜𝐤𝐥𝐞 𝐢𝐭:" followed by 3-4 bullet points
-4. End with a technical question about the project dont need any heading just question
-5. Portfolio section titled "𝐏𝐨𝐫𝐭𝐟𝐨𝐥𝐢𝐨:" with relevant links
-6. Professional closing: "𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬,\n𝐌𝐚𝐬𝐡 𝐇\n𝐓𝐨𝐩 𝐑𝐚𝐭𝐞𝐝 𝐅𝐫𝐞𝐞𝐥𝐚𝐧𝐜𝐞𝐫"
-7. Avoid words like Seamless, Robust,  Eager, However
-8. Avoid using —
-
-STYLE REQUIREMENTS:
-- Use bold Unicode characters for section headers (NOT markdown ** formatting)
-- Keep it around 150 words
-- Be technical but informal
-- Show confidence and expertise
-- Include specific technical approach
-- Use dashes (-) for portfolio items
-- NEVER use markdown formatting like ** or __ — only use bold Unicode characters
-
-PORTFOLIO LINKS TO USE:
-- Android: https://play.google.com/store/apps/details?id=com.blink.burgerlab
-- iOS: https://apps.apple.com/us/app/burger-lab/id1555639986
-- GitHub: https://github.com/mashood100
-
-Write the proposal as if you're Mash H, a top-rated freelancer with expertise in the technology stack mentioned in the job description."""
+            # Use the prompt template from file instead of hardcoded prompt
+            system_prompt = self.prompt_template
             
             user_message = f"Job Description:\n{job_description}"
             
@@ -228,28 +202,6 @@ Write the proposal as Mash H, emphasizing your expertise in the required technol
             # Remove any markdown formatting (** **) that the AI might have added
             generated_proposal = self._clean_markdown_formatting(generated_proposal)
             
-            # Post-process to ensure portfolio URLs are included at the bottom
-            if relevant_projects:
-                portfolio_urls = "\n\n𝐀𝐝𝐝𝐢𝐭𝐢𝐨𝐧𝐚𝐥 𝐑𝐞𝐥𝐞𝐯𝐚𝐧𝐭 𝐖𝐨𝐫𝐤:\n"
-                for item in relevant_projects:
-                    project = item['project']
-                    portfolio_urls += f"- {project['name']}"
-                    if project.get('github_url'):
-                        portfolio_urls += f": {project['github_url']}"
-                    elif project.get('live_url'):
-                        portfolio_urls += f": {project['live_url']}"
-                    elif project.get('app_store_url'):
-                        portfolio_urls += f": {project['app_store_url']}"
-                    portfolio_urls += "\n"
-                
-                # Add portfolio URLs before the closing signature
-                if "𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬" in generated_proposal:
-                    generated_proposal = generated_proposal.replace(
-                        "𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬",
-                        portfolio_urls + "\n𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬"
-                    )
-                else:
-                    generated_proposal += portfolio_urls
             
             logger.info(f"Successfully generated proposal with {len(relevant_projects)} portfolio projects")
             return generated_proposal
@@ -357,35 +309,29 @@ Write the proposal as Mash H, emphasizing your expertise in the required technol
             # Remove any markdown formatting (** **) that the AI might have added
             generated_proposal = self._clean_markdown_formatting(generated_proposal)
             
-            # Post-process to ensure portfolio URLs are included at the bottom
-            if selected_projects or external_portfolio_links:
-                portfolio_urls = "\n\n𝐀𝐝𝐝𝐢𝐭𝐢𝐨𝐧𝐚𝐥 𝐑𝐞𝐥𝐞𝐯𝐚𝐧𝐭 𝐖𝐨𝐫𝐤:\n"
-                
-                # Add selected projects
-                if selected_projects:
-                    for project in selected_projects:
-                        portfolio_urls += f"- {project['name']}"
-                        if project.get('github_url'):
-                            portfolio_urls += f": {project['github_url']}"
-                        elif project.get('live_url'):
-                            portfolio_urls += f": {project['live_url']}"
-                        elif project.get('app_store_url'):
-                            portfolio_urls += f": {project['app_store_url']}"
-                        portfolio_urls += "\n"
-                
-                # Add external links
-                if external_portfolio_links:
-                    for link in external_portfolio_links:
-                        portfolio_urls += link + "\n"
-                
-                # Add portfolio URLs before the closing signature
-                if "𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬" in generated_proposal:
-                    generated_proposal = generated_proposal.replace(
-                        "𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬",
-                        portfolio_urls + "\n𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬"
-                    )
-                else:
-                    generated_proposal += portfolio_urls
+            # Ensure the portfolio section uses the exact template format and add external links if selected
+            # Replace any variations of the portfolio section with the exact template
+            import re
+            
+            # Find the portfolio section (from "𝐏𝐨𝐫𝐭𝐟𝐨𝐥𝐢𝐨:" to "𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬,")
+            portfolio_pattern = r'𝐏𝐨𝐫𝐭𝐟𝐨𝐥𝐢𝐨:.*?(?=𝐁𝐞𝐬𝐭 𝐑𝐞𝐠𝐚𝐫𝐝𝐬,)'
+            
+            # Define the exact portfolio template
+            portfolio_template = """𝐏𝐨𝐫𝐭𝐟𝐨𝐥𝐢𝐨:
+✔ 𝐀𝐧𝐝𝐫𝐨𝐢𝐝 𝐀𝐩𝐩𝐥𝐢𝐜𝐚𝐭𝐢𝐨𝐧: https://play.google.com/store/apps/details?id=com.blink.burgerlab https://play.google.com/store/apps/details?id=com.grubhub.android
+✔ 𝐈𝐎𝐒 𝐀𝐩𝐩𝐥𝐢𝐜𝐚𝐭𝐢𝐨𝐧: https://apps.apple.com/us/app/burger-lab/id1555639986 https://apps.apple.com/us/app/grubhub-food-delivery/id302920553
+✔ 𝐘𝐨𝐮 𝐜𝐚𝐧 𝐜𝐡𝐞𝐜𝐤 𝐨𝐮𝐭 𝐦𝐲 𝐆𝐢𝐭𝐇𝐮𝐛 𝐡𝐞𝐫𝐞: https://github.com/mashood100"""
+            
+            # Add external links if selected
+            if external_links.get('stackoverflow'):
+                portfolio_template += "\n✔ 𝐘𝐨𝐮 𝐜𝐚𝐧 𝐜𝐡𝐞𝐜𝐤 𝐦𝐲 𝐒𝐭𝐚𝐜𝐤 𝐎𝐯𝐞𝐫𝐟𝐥𝐨𝐰: https://stackoverflow.com/users/12777999/mashood-h"
+            if external_links.get('website'):
+                portfolio_template += "\n✔ 𝐌𝐲 𝐏𝐨𝐫𝐭𝐟𝐨𝐥𝐢𝐨 𝐖𝐞𝐛𝐬𝐢𝐭𝐞: [Your Website URL]"
+            
+            portfolio_template += "\n\n"
+            
+            # Replace the portfolio section with the exact template
+            generated_proposal = re.sub(portfolio_pattern, portfolio_template, generated_proposal, flags=re.DOTALL)
             
             logger.info(f"Successfully generated custom proposal with {len(selected_projects)} projects and external links: {external_links}")
             return generated_proposal
