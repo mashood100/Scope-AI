@@ -39,7 +39,7 @@ if RAILWAY_ENVIRONMENT:
 else:
     DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*',"https://scope-ai-production.up.railway.app"]
 
 
 # Application definition
