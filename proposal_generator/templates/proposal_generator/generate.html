@@ -145,6 +145,9 @@
                   <button id="downloadBtn" class="btn btn-outline-primary btn-sm">
                     <i class="fas fa-download me-1"></i>Download
                   </button>
+                  <button id="saveBtn" class="btn btn-outline-success btn-sm">
+                    <i class="fas fa-save me-1"></i>Save
+                  </button>
                 </div>
               </div>
               <textarea
@@ -190,6 +193,104 @@
       </div>
     </div>
   </div>
+
+  <!-- Save Proposal Modal -->
+  <div class="modal fade" id="saveProposalModal" tabindex="-1" aria-labelledby="saveProposalModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title" id="saveProposalModalLabel">
+            <i class="fas fa-save me-2"></i>Save Proposal Tracking
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted mb-4">
+            Save your proposal submission details to track its performance and status.
+          </p>
+          
+          <form id="saveProposalForm">
+            <div class="mb-3">
+              <label for="proposalLink" class="form-label fw-bold">
+                Proposal Link <span class="text-danger">*</span>
+              </label>
+              <input
+                type="url"
+                id="proposalLink"
+                class="form-control"
+                placeholder="https://www.upwork.com/jobs/..."
+                required
+              />
+              <div class="form-text">
+                Enter the Upwork job posting URL or proposal submission link
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="connected" class="form-label fw-bold">
+                Connected <span class="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                id="connected"
+                class="form-control"
+                placeholder="e.g., 10 connects, 5 connects"
+                required
+              />
+              <div class="form-text">
+                Number of connections used or connection status
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="postedAgo" class="form-label fw-bold">
+                Posted Ago <span class="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                id="postedAgo"
+                class="form-control"
+                placeholder="e.g., 2 hours ago, 1 day ago"
+                required
+              />
+              <div class="form-text">
+                How long ago was this job posted
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="isViewed">
+                  <label class="form-check-label" for="isViewed">
+                    <strong>Proposal Viewed</strong>
+                    <br><small class="text-muted">Client has viewed your proposal</small>
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="isHired">
+                  <label class="form-check-label" for="isHired">
+                    <strong>Hired</strong>
+                    <br><small class="text-muted">You were hired for this project</small>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times me-1"></i>Cancel
+          </button>
+          <button type="button" id="saveTrackingBtn" class="btn btn-success">
+            <i class="fas fa-save me-1"></i>Save Tracking
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 {% endblock %}
 
 {% block extra_js %}
@@ -203,6 +304,7 @@
     const generatedProposalTextarea = document.getElementById("generatedProposal");
     const copyBtn = document.getElementById("copyBtn");
     const downloadBtn = document.getElementById("downloadBtn");
+    const saveBtn = document.getElementById("saveBtn");
     const generateNewBtn = document.getElementById("generateNewBtn");
     const clearBtn = document.getElementById("clearBtn");
     const charCount = document.getElementById("charCount");
@@ -216,6 +318,16 @@
     let allPortfolioProjects = [];
     let selectedProjectIds = [];
     let isGenerating = false; // Flag to prevent multiple simultaneous generations
+    let currentProposalId = null; // Store the current proposal ID for saving tracking
+    
+    // Modal elements
+    const saveProposalModal = new bootstrap.Modal(document.getElementById('saveProposalModal'));
+    const saveTrackingBtn = document.getElementById('saveTrackingBtn');
+    const proposalLinkInput = document.getElementById('proposalLink');
+    const connectedInput = document.getElementById('connected');
+    const postedAgoInput = document.getElementById('postedAgo');
+    const isViewedCheckbox = document.getElementById('isViewed');
+    const isHiredCheckbox = document.getElementById('isHired');
 
     jobDescriptionTextarea.addEventListener("input", function () {
       const count = this.value.length;
@@ -291,6 +403,9 @@
         }
         
         generatedProposalTextarea.value = result.generated_proposal;
+        
+        // Store the proposal ID for tracking
+        currentProposalId = result.proposal_id;
         
         if (selectedProjects.length > 0) {
           portfolioInfo.classList.remove("d-none");
@@ -369,11 +484,103 @@
       link.remove();
     }
 
+    function showSaveModal() {
+      if (!currentProposalId) {
+        alert("No proposal to save. Please generate a proposal first.");
+        return;
+      }
+      
+      // Reset form
+      document.getElementById('saveProposalForm').reset();
+      saveProposalModal.show();
+    }
+
+    async function saveProposalTracking() {
+      // Validate form
+      const proposalLink = proposalLinkInput.value.trim();
+      const connected = connectedInput.value.trim();
+      const postedAgo = postedAgoInput.value.trim();
+      
+      if (!proposalLink || !connected || !postedAgo) {
+        alert("Please fill in all required fields.");
+        return;
+      }
+      
+      // Validate URL format
+      try {
+        new URL(proposalLink);
+      } catch {
+        alert("Please enter a valid URL for the proposal link.");
+        return;
+      }
+      
+      saveTrackingBtn.disabled = true;
+      saveTrackingBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+      
+      try {
+        const trackingData = {
+          proposal_id: currentProposalId,
+          user_id: 'user123', // You can get this from session or user context
+          proposal_link: proposalLink,
+          connected: connected,
+          posted_ago: postedAgo,
+          is_viewed: isViewedCheckbox.checked,
+          is_hired: isHiredCheckbox.checked
+        };
+        
+        const response = await fetch('/proposals/api/tracking/save/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+          },
+          body: JSON.stringify(trackingData)
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        // Show success message
+        saveProposalModal.hide();
+        
+        // Show success alert
+        const successDiv = document.createElement('div');
+        successDiv.className = 'alert alert-success alert-dismissible fade show mt-3';
+        successDiv.innerHTML = `
+          <h6><i class="fas fa-check-circle me-2"></i>Proposal Tracking Saved!</h6>
+          <p class="mb-1">Your proposal tracking has been saved successfully.</p>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        // Insert success message at the top of results section
+        resultsSection.insertBefore(successDiv, resultsSection.firstChild);
+        
+        // Auto-remove success message after 5 seconds
+        setTimeout(() => {
+          if (successDiv.parentElement) {
+            successDiv.remove();
+          }
+        }, 5000);
+        
+      } catch (error) {
+        console.error("Error saving proposal tracking:", error);
+        alert(`Failed to save proposal tracking: ${error.message}`);
+      } finally {
+        saveTrackingBtn.disabled = false;
+        saveTrackingBtn.innerHTML = '<i class="fas fa-save me-1"></i>Save Tracking';
+      }
+    }
+
     function clearAll() {
       if (!confirm("Are you sure you want to clear everything?")) return;
       
       // Reset generation state
       isGenerating = false;
+      currentProposalId = null;
       
       clientNameInput.value = "";
       jobDescriptionTextarea.value = "";
@@ -499,6 +706,8 @@
     generateNewBtn?.addEventListener("click", generateProposal);
     copyBtn?.addEventListener("click", copyProposal);
     downloadBtn?.addEventListener("click", downloadProposal);
+    saveBtn?.addEventListener("click", showSaveModal);
+    saveTrackingBtn?.addEventListener("click", saveProposalTracking);
     clearBtn?.addEventListener("click", clearAll);
     window.clearForm = clearAll;
 
@@ -510,6 +719,19 @@
     });
 
     loadPortfolioCount();
+    
+    // Debug: Check if save button exists
+    console.log('Save button element:', saveBtn);
+    console.log('Save modal element:', document.getElementById('saveProposalModal'));
+    
+    // Add a small delay to ensure DOM is fully loaded
+    setTimeout(() => {
+      if (saveBtn) {
+        console.log('✓ Save button found and initialized');
+      } else {
+        console.error('✗ Save button not found!');
+      }
+    }, 1000);
   });
 </script>
 {% endblock %}

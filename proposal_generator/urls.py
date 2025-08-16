@@ -2,7 +2,8 @@ from django.urls import path
 from .api.views import (
     GenerateProposalView, GenerateCustomProposalView, UserProposalsView, ProposalDetailView,
     ProposalSearchView, ProposalStatsView, DeleteProposalView,
-    CreatePortfolioView, UserPortfolioView, PortfolioDetailView, SimilarProjectsView
+    CreatePortfolioView, UserPortfolioView, PortfolioDetailView, SimilarProjectsView,
+    SaveProposalTrackingView, UserTrackedProposalsView, UpdateTrackingStatusView, TrackingStatsView
 )
 from .api.ui_views import DashboardView, PortfolioView, GenerateView, dashboard_stats
 
@@ -27,4 +28,10 @@ urlpatterns = [
     path('api/portfolio/user/<str:user_id>/', UserPortfolioView.as_view(), name='user-portfolio'),
     path('api/portfolio/detail/<str:project_id>/', PortfolioDetailView.as_view(), name='portfolio-detail'),
     path('api/portfolio/similar/', SimilarProjectsView.as_view(), name='similar-projects'),
+    
+    # Proposal Tracking API endpoints
+    path('api/tracking/save/', SaveProposalTrackingView.as_view(), name='save-proposal-tracking'),
+    path('api/tracking/user/<str:user_id>/', UserTrackedProposalsView.as_view(), name='user-tracked-proposals'),
+    path('api/tracking/update/<str:tracking_id>/', UpdateTrackingStatusView.as_view(), name='update-tracking-status'),
+    path('api/tracking/stats/<str:user_id>/', TrackingStatsView.as_view(), name='tracking-stats'),
 ] 

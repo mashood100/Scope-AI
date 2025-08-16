@@ -71,4 +71,38 @@ class Portfolio(models.Model):
     
     def get_technologies_display(self):
         """Return technologies as a comma-separated string"""
-        return ', '.join(self.technologies) if self.technologies else '' 
+        return ', '.join(self.technologies) if self.technologies else ''
+
+
+class ProposalTracking(models.Model):
+    """Model to track submitted proposals with their Upwork details"""
+    
+    # Link to the original generated proposal
+    proposal_id = models.CharField(max_length=255, help_text="ID of the generated proposal")
+    user_id = models.CharField(max_length=255, help_text="ID of the user who owns this proposal")
+    
+    # Upwork specific fields
+    proposal_link = models.URLField(help_text="Link to the Upwork proposal/job")
+    connected = models.CharField(max_length=100, help_text="Number of connections or connection status")
+    posted_ago = models.CharField(max_length=100, help_text="Time since the job was posted")
+    
+    # Tracking fields
+    is_viewed = models.BooleanField(default=False, help_text="Whether the proposal has been viewed by client")
+    is_hired = models.BooleanField(default=False, help_text="Whether the user was hired for this proposal")
+    
+    # Metadata
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'proposal_tracking'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user_id']),
+            models.Index(fields=['proposal_id']),
+            models.Index(fields=['is_viewed']),
+            models.Index(fields=['is_hired']),
+        ]
+    
+    def __str__(self):
+        return f"Tracking for Proposal {self.proposal_id} - {self.user_id}" 

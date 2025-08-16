@@ -5,7 +5,8 @@ from .services.proposal_service import ProposalService
 from .services.portfolio_service import PortfolioAnalysisService
 from .services.mongo_proposal_service import MongoProposalService
 from .services.mongo_portfolio_service import MongoPortfolioService
-from .models import JobProposal, Portfolio
+from .services.mongo_proposal_tracking_service import MongoProposalTrackingService
+from .models import JobProposal, Portfolio, ProposalTracking
 from rest_framework.pagination import PageNumberPagination
 import logging
 
@@ -800,5 +801,238 @@ class SimilarProjectsView(APIView):
             logger.error(f"Error in SimilarProjectsView: {str(e)}")
             return Response(
                 {"error": f"Failed to find similar projects: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# ===== PROPOSAL TRACKING VIEWS =====
+
+class SaveProposalTrackingView(APIView):
+    """
+    API endpoint to save proposal tracking data
+    
+    POST /proposals/api/tracking/save/
+    {
+        "proposal_id": "60f7c1234567890abcdef123",
+        "user_id": "user123",
+        "proposal_link": "https://upwork.com/jobs/job-id",
+        "connected": "10 connects",
+        "posted_ago": "2 hours ago",
+        "is_viewed": false,
+        "is_hired": false
+    }
+    """
+    
+    def post(self, request):
+        try:
+            # Extract required fields
+            proposal_id = request.data.get('proposal_id')
+            user_id = request.data.get('user_id')
+            proposal_link = request.data.get('proposal_link')
+            connected = request.data.get('connected')
+            posted_ago = request.data.get('posted_ago')
+            
+            # Validate required fields
+            if not proposal_id:
+                return Response(
+                    {"error": "proposal_id is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if not user_id:
+                return Response(
+                    {"error": "user_id is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if not proposal_link:
+                return Response(
+                    {"error": "proposal_link is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if not connected:
+                return Response(
+                    {"error": "connected is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if not posted_ago:
+                return Response(
+                    {"error": "posted_ago is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate URL format
+            import re
+            url_pattern = re.compile(
+                r'^https?://'  # http:// or https://
+                r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
+                r'localhost|'  # localhost...
+                r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+                r'(?::\d+)?'  # optional port
+                r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+            
+            if not url_pattern.match(proposal_link):
+                return Response(
+                    {"error": "proposal_link must be a valid URL"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check if tracking already exists for this proposal
+            tracking_service = MongoProposalTrackingService()
+            existing_tracking = tracking_service.get_tracking_by_proposal_id(proposal_id)
+            
+            if existing_tracking:
+                return Response(
+                    {"error": "Tracking data already exists for this proposal"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Prepare tracking data
+            tracking_data = {
+                "proposal_id": proposal_id,
+                "user_id": user_id,
+                "proposal_link": proposal_link,
+                "connected": connected,
+                "posted_ago": posted_ago,
+                "is_viewed": request.data.get('is_viewed', False),
+                "is_hired": request.data.get('is_hired', False)
+            }
+            
+            # Save to MongoDB
+            tracking_id = tracking_service.save_proposal_tracking(tracking_data)
+            
+            logger.info(f"Saved proposal tracking for proposal {proposal_id}, tracking ID: {tracking_id}")
+            
+            return Response({
+                "success": True,
+                "tracking_id": tracking_id,
+                "proposal_id": proposal_id,
+                "message": "Proposal tracking saved successfully"
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            logger.error(f"Error in SaveProposalTrackingView: {str(e)}")
+            logger.error(f"Full traceback: {error_details}")
+            return Response(
+                {
+                    "error": f"Failed to save proposal tracking: {str(e)}",
+                    "details": str(e),
+                    "type": type(e).__name__
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class UserTrackedProposalsView(APIView):
+    """
+    API endpoint to get all tracked proposals for a specific user
+    
+    GET /proposals/api/tracking/user/{user_id}/
+    """
+    
+    def get(self, request, user_id):
+        try:
+            # Get pagination parameters
+            page = int(request.query_params.get('page', 1))
+            page_size = int(request.query_params.get('page_size', 10))
+            
+            # Get tracking records from MongoDB
+            tracking_service = MongoProposalTrackingService()
+            result = tracking_service.get_user_tracked_proposals(user_id, page, page_size)
+            
+            # Return paginated response
+            return Response({
+                "results": result["tracking_records"],
+                "count": result["pagination"]["total_count"],
+                "next": f"?page={page + 1}" if result["pagination"]["has_next"] else None,
+                "previous": f"?page={page - 1}" if result["pagination"]["has_previous"] else None,
+                "total_pages": result["pagination"]["total_pages"],
+                "current_page": result["pagination"]["current_page"]
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error in UserTrackedProposalsView: {str(e)}")
+            return Response(
+                {"error": f"Failed to retrieve tracked proposals: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class UpdateTrackingStatusView(APIView):
+    """
+    API endpoint to update tracking status (viewed/hired)
+    
+    PUT /proposals/api/tracking/update/{tracking_id}/
+    {
+        "is_viewed": true,
+        "is_hired": false
+    }
+    """
+    
+    def put(self, request, tracking_id):
+        try:
+            is_viewed = request.data.get('is_viewed')
+            is_hired = request.data.get('is_hired')
+            
+            # At least one field should be provided
+            if is_viewed is None and is_hired is None:
+                return Response(
+                    {"error": "At least one of is_viewed or is_hired must be provided"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Update tracking status
+            tracking_service = MongoProposalTrackingService()
+            success = tracking_service.update_tracking_status(
+                tracking_id, is_viewed, is_hired
+            )
+            
+            if not success:
+                return Response(
+                    {"error": "Tracking record not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Get updated record
+            updated_record = tracking_service.get_tracking_by_id(tracking_id)
+            
+            return Response({
+                "success": True,
+                "tracking_id": tracking_id,
+                "updated_record": updated_record,
+                "message": "Tracking status updated successfully"
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error in UpdateTrackingStatusView: {str(e)}")
+            return Response(
+                {"error": f"Failed to update tracking status: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class TrackingStatsView(APIView):
+    """
+    API endpoint to get tracking statistics for a user
+    
+    GET /proposals/api/tracking/stats/{user_id}/
+    """
+    
+    def get(self, request, user_id):
+        try:
+            # Get stats from MongoDB
+            tracking_service = MongoProposalTrackingService()
+            stats = tracking_service.get_tracking_stats(user_id)
+            
+            return Response(stats, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error in TrackingStatsView: {str(e)}")
+            return Response(
+                {"error": f"Failed to retrieve tracking stats: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             ) 
